@@ -74,15 +74,14 @@ static const uint8_t iec2hw_table[] = {
 
 static uint8_t iec2hw(uint8_t iec)
 {
-    //return pgm_read_byte(iec2hw_table + iec);
-    return 0;
+    return iec2hw_table[iec];
 }
 
 // Initialize all IEC lines to idle
 struct ProtocolFunctions *iec_init()
 {
-    //iec_release(IO_ATN | IO_CLK | IO_DATA | IO_RESET);
-    //DELAY_US(10);
+    iec_release(IO_ATN | IO_CLK | IO_DATA | IO_RESET);
+    DELAY_US(10);
     return &iecFunctions;
 }
 
@@ -93,33 +92,32 @@ struct ProtocolFunctions *iec_init()
  */
 static uint8_t check_if_bus_free(void)
 {
-    return 0;
-
     // Let go of all lines and wait for the drive to have time to react.
-    /*iec_release(IO_ATN | IO_CLK | IO_DATA | IO_RESET);
+    iec_release(IO_ATN | IO_CLK | IO_DATA | IO_RESET);
     DELAY_US(50);
 
     // If DATA is held, drive is not yet ready.
-    if (iec_get(IO_DATA)) {
+    if (iec_get(IO_DATA)) 
+    {
         DELAY_US(150);
         return 0;
-    }*/
+    }
 
     /*
      * DATA is free, now make sure it is stable for 50 us. Nate has seen
      * it glitch if DATA is stable for < 38 us before we pull ATN.
      */
-    /*DELAY_US(50);
+    DELAY_US(50);
     if (iec_get(IO_DATA)) {
         DELAY_US(100);
         return 0;
-    }*/
+    }
 
     /*
      * Assert ATN and wait for the drive to have time to react. It typically
      * does so almost immediately.
      */
-    /*iec_set(IO_ATN);
+    iec_set(IO_ATN);
     DELAY_US(100);
 
     // If DATA is still unset, no drive answered.
@@ -130,7 +128,7 @@ static uint8_t check_if_bus_free(void)
 
     // Good, at least one drive reacted. Now, test releasing ATN.
     iec_release(IO_ATN);
-    DELAY_US(100);*/
+    DELAY_US(100);
 
     /*
      * The drive released DATA, so we're done.
@@ -138,7 +136,7 @@ static uint8_t check_if_bus_free(void)
      * Nate noticed on a scope that the drive pulls DATA for 60 us,
      * 150-500 us after releasing it in response to when we release ATN.
      */
-    //return !iec_get(IO_DATA);
+    return !iec_get(IO_DATA);
 }
 
 /*
@@ -148,9 +146,9 @@ static uint8_t check_if_bus_free(void)
  */
 static void wait_for_free_bus(bool forever)
 {
-    /*uint16_t i;
+    uint16_t i;
 
-    for (i = (uint16_t)(XUM1541_TIMEOUT * 5000); i != 0 || forever; i--) {*/
+    for (i = (uint16_t)(PICO1541_TIMEOUT * 5000); i != 0 || forever; i--) {
         /*
          * We depend on the internal delays within this function to be sure
          * the whole loop takes long enough. If there is no device, this
@@ -160,20 +158,20 @@ static void wait_for_free_bus(bool forever)
          * for 50 us per try (375 ms total timeout). This is still much
          * more than IEC_T_AT.
          */
-        /*if (check_if_bus_free())
+        if (check_if_bus_free())
             return;
 
         // Bail out early if host signalled an abort.
         if (!TimerWorker())
             return;
     }
-    DEBUGF(DBG_ERROR, "wait4free bus to\n");*/
+    DEBUGF(DBG_ERROR, "wait4free bus to\n");
 }
 
 static void iec_reset(bool forever)
 {
-    /*DEBUGF(DBG_ALL, "reset\n");
-    iec_release(IO_DATA | IO_ATN | IO_CLK);*/
+    DEBUGF(DBG_ALL, "reset\n");
+    iec_release(IO_DATA | IO_ATN | IO_CLK);
 
     /*
      * Hold the device in reset a while. 20 ms was too short and it didn't
@@ -187,28 +185,28 @@ static void iec_reset(bool forever)
      * and DATA, and for about 40 ns, ATN also. Nate assumes this is
      * crosstalk from the VIAs being setup by the 6502.
      */
-    //iec_set(IO_RESET);
+    iec_set(IO_RESET);
     /*
      * For one of Womo's drives a reset low hold time of 30 ms was too short.
      * Therefore the value was increased to 100ms. The drive already worked
      * with a value of 45 ms, but it was more than doubled to 100 ms to get a
      * safety margin for even very worse cabling or input circuit conditions.
      */
-    /*DELAY_MS(100);
+    DELAY_MS(100);
     iec_release(IO_RESET);
 
-    wait_for_free_bus(forever);*/
+    wait_for_free_bus(forever);
 }
 
 // Wait up to 2 ms for any of the masked lines to become active.
 static uint8_t iec_wait_timeout_2ms(uint8_t mask, uint8_t state)
 {
-    /*uint8_t count = 200;
+    uint8_t count = 200;
 
     while ((iec_poll_pins() & mask) == state && count-- != 0)
         DELAY_US(10);
 
-    return ((iec_poll_pins() & mask) != state);*/
+    return ((iec_poll_pins() & mask) != state);
 
     return 0;
 }
@@ -216,10 +214,10 @@ static uint8_t iec_wait_timeout_2ms(uint8_t mask, uint8_t state)
 // Wait up to 400 us for CLK to be pulled by the drive.
 static void iec_wait_clk(void)
 {
-    /*uint8_t count = 200;
+    uint8_t count = 200;
 
     while (iec_get(IO_CLK) == 0 && count-- != 0)
-        DELAY_US(2);*/
+        DELAY_US(2);
 }
 
 /*
@@ -242,12 +240,14 @@ static uint8_t send_byte(uint8_t b)
 {
     uint8_t i, ack = 0;
 
-    /*for (i = 8; i != 0; i--) {
+    for (i = 8; i != 0; i--)
+    {
         // Wait for Ts (setup) with additional padding
         DELAY_US(IEC_T_S + 55);
 
         // Set the bit value on the DATA line and wait for it to settle.
-        if (!(b & 1)) {
+        if (!(b & 1))
+        {
             iec_set(IO_DATA);
             IEC_DELAY();
         }
@@ -258,16 +258,17 @@ static uint8_t send_byte(uint8_t b)
 
         iec_set_release(IO_CLK, IO_DATA);
         b >>= 1;
-    }*/
+    }
 
     /*
      * Wait up to 2 ms for DATA to be driven by device (IEC_T_F).
      * It takes around 70-80 us on Nate's 1541.
      */
-    /*ack = iec_wait_timeout_2ms(IO_DATA, IO_DATA);
-    if (!ack) {
+    ack = iec_wait_timeout_2ms(IO_DATA, IO_DATA);
+    if (!ack)
+    {
         DEBUGF(DBG_ERROR, "sndbyte nak\n");
-    }*/
+    }
 
     return ack;
 }
@@ -283,16 +284,15 @@ static uint8_t send_byte(uint8_t b)
 static bool wait_for_listener(void)
 {
     // Release CLK to indicate that we are ready to send.
-    //iec_release(IO_CLK);
+    iec_release(IO_CLK);
 
     // Wait forever (IEC_T_H) for device to do the same with the DATA line.
-    /*while (iec_get(IO_DATA)) {
+    while (iec_get(IO_DATA)) {
         // If we got an abort, bail out of this loop.
         if (!TimerWorker())
             return false;
     }
-    return true;*/
-    return false;
+    return true;
 }
 
 /*
@@ -301,19 +301,19 @@ static bool wait_for_listener(void)
  */
 static uint16_t iec_raw_write(uint16_t len, uint8_t flags)
 {
-    /*uint8_t atn, talk, data;
+    uint8_t atn, talk, data;
     uint16_t rv;
 
     rv = len;
-    atn = flags & XUM_WRITE_ATN;
-    talk = flags & XUM_WRITE_TALK;
+    atn = flags & PICO_WRITE_ATN;
+    talk = flags & PICO_WRITE_TALK;
     eoi = 0;
 
     DEBUGF(DBG_INFO, "cwr %d, atn %d, talk %d\n", len, atn, talk);
     if (len == 0)
         return 0;
 
-    usbInitIo(len, ENDPOINT_DIR_OUT);*/
+    //usbInitIo(len, ENDPOINT_DIR_OUT);*/
 
     /*
      * First, check if any device is present on the bus.
@@ -321,9 +321,9 @@ static uint16_t iec_raw_write(uint16_t len, uint8_t flags)
      * drive is attached but none are powered up. In this case, we
      * bail out early. Otherwise, we'd get stuck in wait_for_listener().
      */
-    /*if (!iec_wait_timeout_2ms(IO_ATN|IO_RESET, 0)) {
+    if (!iec_wait_timeout_2ms(IO_ATN|IO_RESET, 0)) {
         DEBUGF(DBG_ERROR, "write: no devs on bus\n");
-        usbIoDone();
+        //usbIoDone();
         return 0;
     }
 
@@ -336,9 +336,9 @@ static uint16_t iec_raw_write(uint16_t len, uint8_t flags)
     if (!iec_wait_timeout_2ms(IO_DATA, IO_DATA)) {
         DEBUGF(DBG_ERROR, "write: no devs\n");
         iec_release(IO_CLK | IO_ATN);
-        usbIoDone();
+        //usbIoDone();
         return 0;
-    }*/
+    }
 
     /*
      * Wait a short while for drive to be ready for us to release CLK.
@@ -346,10 +346,10 @@ static uint16_t iec_raw_write(uint16_t len, uint8_t flags)
      * minimum, the transfer starts to be unreliable for Tne somewhere
      * below 10 us.
      */
-    //DELAY_US(IEC_T_NE);
+    DELAY_US(IEC_T_NE);
 
     // Respond with data as soon as device is ready (max time Tne, 200 us).
-    /*while (len != 0) {
+    while (len != 0) {
         // Be sure DATA line has been pulled by device. If not, we timed
         // out without a device being ready.
         if (!iec_get(IO_DATA)) {
@@ -363,7 +363,7 @@ static uint16_t iec_raw_write(uint16_t len, uint8_t flags)
             DEBUGF(DBG_ERROR, "write: w4l abrt\n");
             rv = 0;
             break;
-        }*/
+        }
 
         /*
          * Signal EOI by waiting so long (IEC_T_YE, > 200 us) that
@@ -373,17 +373,19 @@ static uint16_t iec_raw_write(uint16_t len, uint8_t flags)
          * If we're not signalling EOI, we must set CLK (below) in less
          * than 200 us after wait_for_listener() (IEC_T_RY).
          */
-        /*if (len == 1 && !atn) {
+        if (len == 1 && !atn) {
             iec_wait_timeout_2ms(IO_DATA, IO_DATA);
             iec_wait_timeout_2ms(IO_DATA, 0);
         }
         iec_set(IO_CLK);
 
         // Get a data byte from host, quitting if it signalled an abort.
-        if (usbRecvByte(&data) != 0) {
+        /*if (usbRecvByte(&data) != 0) {
             rv = 0;
             break;
-        }
+        }*/
+
+
         if (send_byte(data)) {
             len--;
             DELAY_US(IEC_T_BB);
@@ -393,15 +395,15 @@ static uint16_t iec_raw_write(uint16_t len, uint8_t flags)
             break;
         }
 
-        wdt_reset();
+        //wdt_reset();
     }
-    usbIoDone();*/
+    //usbIoDone();
 
     /*
      * We rely on the per-byte IEC_T_BB delay (above) being more than
      * the minimum time before releasing ATN (IEC_T_R).
      */
-    /*if (rv != 0) {
+    if (rv != 0) {
         // Talk-ATN turn around (talker and listener exchange roles).
         if (talk) {
             // Hold DATA and release ATN, waiting talk-ATN release time.
@@ -421,20 +423,19 @@ static uint16_t iec_raw_write(uint16_t len, uint8_t flags)
             }
         } else
             iec_release(IO_ATN);
-    } else {*/
+    } else {
         /*
          * If there was an error, release all lines before returning.
          * Delay the minimum time to releasing ATN after frame, just in
          * case the IEC_T_BB delay (above) was skipped. It is only performed
          * if send_byte() succeeded and not in this error case.
          */
-        /*DELAY_US(IEC_T_R);
+        DELAY_US(IEC_T_R);
         iec_release(IO_CLK | IO_ATN);
     }
 
-    DEBUGF(DBG_INFO, "wrv=%d\n", rv);*/
-    //return rv;
-    return 0;
+    DEBUGF(DBG_INFO, "wrv=%d\n", rv);
+    return rv;
 }
 
 static uint16_t iec_raw_read(uint16_t len)
@@ -535,9 +536,9 @@ static uint16_t iec_raw_read(uint16_t len)
 /* wait forever for a specific line to reach a certain state */
 static bool iec_wait(uint8_t line, uint8_t state)
 {
-/*    uint8_t hw_mask, hw_state;*/
+    uint8_t hw_mask, hw_state;
 
-    /* calculate hw mask and expected state 
+    /* calculate hw mask and expected state */
     hw_mask = iec2hw(line);
     hw_state = state ? hw_mask : 0;
 
@@ -547,15 +548,14 @@ static bool iec_wait(uint8_t line, uint8_t state)
         DELAY_US(10);
     }
 
-    return true;*/
-    return false;
+    return true;
 }
 
 static uint8_t iec_poll(void)
 {
     uint8_t iec_state, rv = 0;
 
-    /*iec_state = iec_poll_pins();
+    iec_state = iec_poll_pins();
     if ((iec_state & IO_DATA) == 0)
         rv |= IEC_DATA;
     if ((iec_state & IO_CLK) == 0)
@@ -563,17 +563,17 @@ static uint8_t iec_poll(void)
     if ((iec_state & IO_ATN) == 0)
         rv |= IEC_ATN;
     if ((iec_state & IO_SRQ) == 0)
-        rv |= IEC_SRQ;*/
+        rv |= IEC_SRQ;
 
     return rv;
 }
 
 static void iec_setrelease(uint8_t set, uint8_t release)
 {
-    /*if (release == 0)
+    if (release == 0)
         iec_set(iec2hw(set));
     else if (set == 0)
         iec_release(iec2hw(release));
     else
-        iec_set_release(iec2hw(set), iec2hw(release));*/
+        iec_set_release(iec2hw(set), iec2hw(release));
 }

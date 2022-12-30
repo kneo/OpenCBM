@@ -21,19 +21,19 @@ typedef void (*Write2Fn_t)(uint8_t *data);
 
 // Track a transfer between usbInitIo()/usbIoDone().
 static uint16_t usbDataLen;
-//static uint8_t usbDataDir = XUM_DATA_DIR_NONE;
+//static uint8_t usbDataDir = PICO_DATA_DIR_NONE;
 
-// Are we in the middle of a command sequence (XUM1541_INIT .. SHUTDOWN)?
-#define XUM1541_CMD_IN_PROGRESS 0x80
+// Are we in the middle of a command sequence (PICO1541_INIT .. SHUTDOWN)?
+#define PICO1541_CMD_IN_PROGRESS 0x80
 static uint8_t cmdSeqInProgress;
 
-// Current device state for the XUM1541_INIT response
+// Current device state for the PICO1541_INIT response
 static uint8_t currState;
 
 // Nibtools command state. See nib_parburst_read/write_checked()
-static bool suppressNibCmd;
+/*static bool suppressNibCmd;
 static uint8_t savedNibWrites[4], *savedNibWritePtr;
-
+*/
 // Protocol handlers to use, set in cbm_init().
 struct ProtocolFunctions *cmds;
 
@@ -59,7 +59,7 @@ struct ProtocolFunctions *cbm_init(void)
     if (Probe4TapeDevice() == Tape_Status_OK_Tape_Device_Present)
     {
         Enter_Tape_Mode(&protoFn);
-        currState |= XUM1541_TAPE_PRESENT;
+        currState |= PICO1541_TAPE_PRESENT;
         return protoFn;
     }
 #endif
@@ -67,12 +67,12 @@ struct ProtocolFunctions *cbm_init(void)
 #ifdef IEEE_SUPPORT
     protoFn = ieee_init();
     if (protoFn != NULL) {
-        currState |= XUM1541_IEEE488_PRESENT;
+        currState |= PICO1541_IEEE488_PRESENT;
         return protoFn;
     }
 #endif*/
 
-    // Always use IEC as last resort.
+    //Due to the lack of any of these devices above, we use only the IEC bus, feel free to add it later.
     board_init_iec();
     protoFn = iec_init();
     return protoFn;
@@ -82,15 +82,15 @@ void usbInitIo(uint16_t len, uint8_t dir)
 {
     /*
 #ifdef DEBUG
-    if (usbDataDir != XUM_DATA_DIR_NONE)
+    if (usbDataDir != PICO_DATA_DIR_NONE)
         DEBUGF(DBG_ERROR, "ERR: usbInitIo left in bad state %d\n", usbDataDir);
 #endif
 
     // Select the proper endpoint for this direction
     if (dir == ENDPOINT_DIR_IN) {
-        Endpoint_SelectEndpoint(XUM_BULK_IN_ENDPOINT);
+        Endpoint_SelectEndpoint(PICO_BULK_IN_ENDPOINT);
     } else if (dir == ENDPOINT_DIR_OUT) {
-        Endpoint_SelectEndpoint(XUM_BULK_OUT_ENDPOINT);
+        Endpoint_SelectEndpoint(PICO_BULK_OUT_ENDPOINT);
     } else {
         DEBUGF(DBG_ERROR, "ERR: usbInitIo bad dir %d\n");
         return;
@@ -143,7 +143,7 @@ void usbIoDone(void)
     } else {
         DEBUGF(DBG_ERROR, "done: bad io dir %d\n", usbDataDir);
     }
-    usbDataDir = XUM_DATA_DIR_NONE;
+    usbDataDir = PICO_DATA_DIR_NONE;
     usbDataLen = 0;*/
 }
 
@@ -371,113 +371,113 @@ static uint8_t ioWriteNibLoop(uint16_t len)
     return 0;
 }
 
-#ifdef SRQ_NIB_SUPPORT
-static uint8_t ioReadNibSrqLoop(uint16_t len)
-{
-    uint16_t i;
-    uint8_t data;
+// #ifdef SRQ_NIB_SUPPORT
+// static uint8_t ioReadNibSrqLoop(uint16_t len)
+// {
+//     uint16_t i;
+//     uint8_t data;
 
-    // Probably an error, but handle it anyway.
-    if (len == 0)
-        return 0;
+//     // Probably an error, but handle it anyway.
+//     if (len == 0)
+//         return 0;
 
-    suppressNibCmd = false;
-    usbInitIo(len, ENDPOINT_DIR_IN);
-    iec_release(IO_SRQ | IO_CLK | IO_DATA | IO_ATN);
+//     suppressNibCmd = false;
+//     usbInitIo(len, ENDPOINT_DIR_IN);
+//     iec_release(IO_SRQ | IO_CLK | IO_DATA | IO_ATN);
 
-    /*
-     * Wait until the host has gotten to generating an IN transaction
-     * before doing the handshake that leads to data beginning to stream
-     * out. This value is derived from the parallel nib routine.
-     */
-    DELAY_MS(10);
+//     /*
+//      * Wait until the host has gotten to generating an IN transaction
+//      * before doing the handshake that leads to data beginning to stream
+//      * out. This value is derived from the parallel nib routine.
+//      */
+//     DELAY_MS(10);
 
-    // We're ready to go, kick off the actual data transfer
-    nib_srqburst_read();
+//     // We're ready to go, kick off the actual data transfer
+//     nib_srqburst_read();
 
-    // Start signal for drive code
-    iec_set(IO_CLK);
+//     // Start signal for drive code
+//     iec_set(IO_CLK);
 
-    for (i = 0; i < len; i++) {
-        // Read a byte via srq
-        data = iec_srq_read();
+//     for (i = 0; i < len; i++) {
+//         // Read a byte via srq
+//         data = iec_srq_read();
 
-        // Stop signal for drive code is to release CLK on last byte.
-        if (i == (len - 2))
-            iec_release(IO_CLK);
+//         // Stop signal for drive code is to release CLK on last byte.
+//         if (i == (len - 2))
+//             iec_release(IO_CLK);
 
-        // Send the byte to the host via USB
-        if (usbSendByte(data) != 0)
-            break;
-    }
-    usbIoDone();
+//         // Send the byte to the host via USB
+//         if (usbSendByte(data) != 0)
+//             break;
+//     }
+//     usbIoDone();
 
-    // All bytes read ok so read the final dummy byte
-    nib_srqburst_read();
+//     // All bytes read ok so read the final dummy byte
+//     nib_srqburst_read();
 
-    return 0;
-}
+//     return 0;
+// }
 
-static uint8_t ioWriteNibSrqLoop(uint16_t len)
-{
-    uint16_t i;
-    uint8_t data, *ptr;
+// static uint8_t ioWriteNibSrqLoop(uint16_t len)
+// {
+//     uint16_t i;
+//     uint8_t data, *ptr;
 
-    // nibtools drive code requires at least one data byte.
-    if (len == 0)
-        return 0;
+//     // nibtools drive code requires at least one data byte.
+//     if (len == 0)
+//         return 0;
 
-    suppressNibCmd = false;
-    usbInitIo(len, ENDPOINT_DIR_OUT);
-    iec_release(IO_SRQ | IO_CLK | IO_DATA | IO_ATN);
+//     suppressNibCmd = false;
+//     usbInitIo(len, ENDPOINT_DIR_OUT);
+//     iec_release(IO_SRQ | IO_CLK | IO_DATA | IO_ATN);
 
-    /*
-     * We're ready to go, kick off the actual data transfer by writing
-     * all saved writes. We keep a queue because the 1541 and 1571 drive
-     * code may send different numbers of bytes here.
-     */
-    for (ptr = savedNibWrites; ptr != savedNibWritePtr; ptr++)
-        nib_srqburst_write(*ptr);
-    savedNibWritePtr = savedNibWrites;
+//     /*
+//      * We're ready to go, kick off the actual data transfer by writing
+//      * all saved writes. We keep a queue because the 1541 and 1571 drive
+//      * code may send different numbers of bytes here.
+//      */
+//     for (ptr = savedNibWrites; ptr != savedNibWritePtr; ptr++)
+//         nib_srqburst_write(*ptr);
+//     savedNibWritePtr = savedNibWrites;
 
-    for (i = 0; i < len; i++) {
-        // Get data byte from USB.
-        if (usbRecvByte(&data) != 0)
-            break;
+//     for (i = 0; i < len; i++) {
+//         // Get data byte from USB.
+//         if (usbRecvByte(&data) != 0)
+//             break;
 
-        // Write data byte via SRQ, break if timeout error.
-        if (nib_srq_write_handshaked(data, i & 1) != 0) {
-            DEBUGF(DBG_ERROR, "nbwrh1 to\n");
-            return -1;
-        }
-    }
+//         // Write data byte via SRQ, break if timeout error.
+//         if (nib_srq_write_handshaked(data, i & 1) != 0) {
+//             DEBUGF(DBG_ERROR, "nbwrh1 to\n");
+//             return -1;
+//         }
+//     }
 
-    // Read back the dummy result.
-    nib_srqburst_read();
+//     // Read back the dummy result.
+//     nib_srqburst_read();
 
-    usbIoDone();
-    return 0;
-}
+//     usbIoDone();
+//     return 0;
+// }
 
-// Check with the state machine before actually doing the write
-static void nib_srqburst_write_checked(uint8_t data)
-{
-    if (nib_check_write(data))
-        nib_srqburst_write(data);
-}
+// // Check with the state machine before actually doing the write
+// static void nib_srqburst_write_checked(uint8_t data)
+// {
+//     if (nib_check_write(data))
+//         nib_srqburst_write(data);
+// }
 
-/*
- * Delay the handshaked read until read/write track, if that's the
- * next function to run. nib_parburst_write_checked() sets this flag.
- */
-static uint8_t nib_srqburst_read_checked(void)
-{
-    if (!suppressNibCmd)
-        return nib_srqburst_read();
-    else
-        return 0x88;
-}
-#endif // SRQ_NIB_SUPPORT
+// /*
+//  * Delay the handshaked read until read/write track, if that's the
+//  * next function to run. nib_parburst_write_checked() sets this flag.
+//  */
+// static uint8_t nib_srqburst_read_checked(void)
+// {
+//     if (!suppressNibCmd)
+//         return nib_srqburst_read();
+//     else
+//         return 0x88;
+// }
+// #endif // SRQ_NIB_SUPPORT
 
 // Check with the state machine before actually doing the write
 static void nib_parburst_write_checked(uint8_t data)
@@ -572,15 +572,15 @@ static void enterBootLoader(void)
 }
 
 /*
- * git revision (if known) plus gcc and libc version strings for XUM1541_GITREV,
- * XUM1541_GCCVER and XUM1541_LIBCVER control messages.
+ * git revision (if known) plus gcc and libc version strings for PICO1541_GITREV,
+ * PICO1541_GCCVER and PICO1541_LIBCVER control messages.
  * To be used by the host in diagnostic messages.
  */
 
+static const char gitRevision[] = "TODO: insert revision here!";//__PICO1541_GIT_REVISION__;
+static const char gccVersion[] = __VERSION__;
+static const char libcVersion[] = "TODO: insert revision here!";//__AVR_LIBC_VERSION_STRING__;
 /*
-static const char gitRevision[] PROGMEM = __XUM1541_GIT_REVISION__;
-static const char gccVersion[] PROGMEM = __VERSION__;
-static const char libcVersion[] PROGMEM = __AVR_LIBC_VERSION_STRING__;
 */
 
 /*
@@ -594,16 +594,16 @@ static const char libcVersion[] PROGMEM = __AVR_LIBC_VERSION_STRING__;
  */
 int8_t usbHandleControl(uint8_t cmd, uint8_t *replyBuf)
 {
-    /*DEBUGF(DBG_INFO, "cmd %d (%d)\n", cmd, cmd - XUM1541_IOCTL);
+    /*DEBUGF(DBG_INFO, "cmd %d (%d)\n", cmd, cmd - PICO1541_IOCTL);
 
     switch (cmd) {
-    case XUM1541_ENTER_BOOTLOADER:
+    case PICO1541_ENTER_BOOTLOADER:
         enterBootLoader();
         return 0;
-    case XUM1541_ECHO:
+    case PICO1541_ECHO:
         replyBuf[0] = cmd;
         return 1;
-    case XUM1541_INIT:
+    case PICO1541_INIT:
         savedNibWritePtr = savedNibWrites;
         board_set_status(STATUS_ACTIVE);
 
@@ -614,8 +614,8 @@ int8_t usbHandleControl(uint8_t cmd, uint8_t *replyBuf)
         if (cmds == NULL)
             return -1;
 
-        replyBuf[0] = XUM1541_VERSION;
-        replyBuf[1] = XUM1541_CAPABILITIES;
+        replyBuf[0] = PICO1541_VERSION;
+        replyBuf[1] = PICO1541_CAPABILITIES;
         replyBuf[2] = currState;*/
 
         /*
@@ -625,12 +625,12 @@ int8_t usbHandleControl(uint8_t cmd, uint8_t *replyBuf)
          * their new transaction.
          */
         /*if (cmdSeqInProgress) {
-            replyBuf[2] |= XUM1541_DOING_RESET;
-            cmdSeqInProgress = XUM1541_DOING_RESET;
+            replyBuf[2] |= PICO1541_DOING_RESET;
+            cmdSeqInProgress = PICO1541_DOING_RESET;
             cmds->cbm_reset(false);
             SetAbortState();
         }
-        cmdSeqInProgress |= XUM1541_CMD_IN_PROGRESS;*/
+        cmdSeqInProgress |= PICO1541_CMD_IN_PROGRESS;*/
 
         /*
          * We wait in main() until at least one device is present on the
@@ -638,31 +638,31 @@ int8_t usbHandleControl(uint8_t cmd, uint8_t *replyBuf)
          * that has been detected.
          */
         /*if (!device_running)
-            replyBuf[2] |= XUM1541_NO_DEVICE;
+            replyBuf[2] |= PICO1541_NO_DEVICE;
         return 8;
-    case XUM1541_SHUTDOWN:
+    case PICO1541_SHUTDOWN:
         cmdSeqInProgress = 0;
         board_set_status(STATUS_READY);
         return 0;
-    case XUM1541_RESET:
+    case PICO1541_RESET:
         // Only do reset if we didn't just reset in INIT (above).
-        if ((cmdSeqInProgress & XUM1541_DOING_RESET) == 0)
+        if ((cmdSeqInProgress & PICO1541_DOING_RESET) == 0)
             cmds->cbm_reset(false);
         return 0;
 #ifdef TAPE_SUPPORT
-    case XUM1541_TAP_BREAK:
+    case PICO1541_TAP_BREAK:
         cmds->cbm_reset(false);
         return 0;
 #endif // TAPE_SUPPORT
-    case XUM1541_GITREV:
-        strncpy_P((char *)replyBuf, gitRevision, XUM_DEVINFO_SIZE);
-        return XUM_DEVINFO_SIZE;
-    case XUM1541_GCCVER:
-        strncpy_P((char *)replyBuf, gccVersion, XUM_DEVINFO_SIZE);
-        return XUM_DEVINFO_SIZE;
-    case XUM1541_LIBCVER:
-        strncpy_P((char *)replyBuf, libcVersion, XUM_DEVINFO_SIZE);
-        return XUM_DEVINFO_SIZE;
+    case PICO1541_GITREV:
+        strncpy_P((char *)replyBuf, gitRevision, PICO_DEVINFO_SIZE);
+        return PICO_DEVINFO_SIZE;
+    case PICO1541_GCCVER:
+        strncpy_P((char *)replyBuf, gccVersion, PICO_DEVINFO_SIZE);
+        return PICO_DEVINFO_SIZE;
+    case PICO1541_LIBCVER:
+        strncpy_P((char *)replyBuf, libcVersion, PICO_DEVINFO_SIZE);
+        return PICO_DEVINFO_SIZE;
     default:
         DEBUGF(DBG_ERROR, "ERR: control cmd %d not impl\n", cmd);
         return -1;
@@ -671,213 +671,214 @@ int8_t usbHandleControl(uint8_t cmd, uint8_t *replyBuf)
 }
 
 // Store the 16-bit response to a bulk command in a status buffer.
-//#define XUM_SET_STATUS_VAL(buf, v)  *(uint16_t *)((buf) + 1) = (v)
+#define PICO_SET_STATUS_VAL(buf, v)  *(uint16_t *)((buf) + 1) = (v)
 
 int8_t usbHandleBulk(uint8_t *request, uint8_t *status)
 {
-    /*
+
     uint8_t cmd, proto;
     int8_t ret;
     uint16_t len;
     bool nibEarlyExit;
 
     // Clear off "just did reset" flag each time a different cmd is run.
-    cmdSeqInProgress &= ~XUM1541_DOING_RESET;
+    cmdSeqInProgress &= ~PICO1541_DOING_RESET;
 
     // Default is to return no data
-    ret = XUM1541_IO_READY;
+    ret = PICO1541_IO_READY;
     cmd = request[0];
     len = *(uint16_t *)&request[2];
     board_set_status(STATUS_ACTIVE);
     switch (cmd) {
-    case XUM1541_READ:
+    case PICO1541_READ:
         // Disallow any other protocols if in IEEE mode.
-        if ((currState & XUM1541_IEEE488_PRESENT) == 0)
-            proto = XUM_RW_PROTO(request[1]);
+        if ((currState & PICO1541_IEEE488_PRESENT) == 0)
+            proto = PICO_RW_PROTO(request[1]);
         else
-            proto = XUM1541_CBM;
+            proto = PICO1541_CBM;
         DEBUGF(DBG_INFO, "rd:%d %d\n", proto, len);
         // loop to read all the bytes now, sending back each as we get it
         switch (proto) {
-        case XUM1541_CBM:
+        case PICO1541_CBM:
             cmds->cbm_raw_read(len);
             ret = 0;
             break;
-        case XUM1541_S1:
+        case PICO1541_S1:
             ioReadLoop(s1_read_byte, len);
             ret = 0;
             break;
-        case XUM1541_S2:
+        /*case PICO1541_S2:
             ioReadLoop(s2_read_byte, len);
             ret = 0;
             break;
-        case XUM1541_PP:
+        case PICO1541_PP:
             ioRead2Loop(pp_read_2_bytes, len);
             ret = 0;
             break;
-        case XUM1541_P2:
+        case PICO1541_P2:
             ioReadLoop(p2_read_byte, len);
             ret = 0;
             break;
-        case XUM1541_NIB:
-            nibEarlyExit = (len & XUM1541_NIB_READ_VAR);
-            len &= ~XUM1541_NIB_READ_VAR;
+        case PICO1541_NIB:
+            nibEarlyExit = (len & PICO1541_NIB_READ_VAR);
+            len &= ~PICO1541_NIB_READ_VAR;
             ioReadNibLoop(len, nibEarlyExit);
             ret = 0;
             break;
-        case XUM1541_NIB_COMMAND:
+        case PICO1541_NIB_COMMAND:
             ioReadLoop(nib_parburst_read_checked, len);
             ret = 0;
-            break;
+            break;*/
+/*
 #ifdef SRQ_NIB_SUPPORT
-        case XUM1541_NIB_SRQ:
+        case PICO1541_NIB_SRQ:
             ioReadNibSrqLoop(len);
             ret = 0;
             break;
-        case XUM1541_NIB_SRQ_COMMAND:
+        case PICO1541_NIB_SRQ_COMMAND:
             ioReadLoop(nib_srqburst_read_checked, len);
             ret = 0;
             break;
 #endif // SRQ_NIB_SUPPORT
 #ifdef TAPE_SUPPORT
-        case XUM1541_TAP:
-            XUM_SET_STATUS_VAL(status, Tape_Capture());
+        case PICO1541_TAP:
+            PICO_SET_STATUS_VAL(status, Tape_Capture());
             break;
-        case XUM1541_TAP_CONFIG:
-            XUM_SET_STATUS_VAL(status, Tape_DownloadConfig());
+        case PICO1541_TAP_CONFIG:
+            PICO_SET_STATUS_VAL(status, Tape_DownloadConfig());
             break;
-#endif // TAPE_SUPPORT
+#endif // TAPE_SUPPORT*/
         default:
             DEBUGF(DBG_ERROR, "badproto %d\n", proto);
             ret = -1;
         }
         break;
-    case XUM1541_WRITE:
+    case PICO1541_WRITE:
         // Disallow any other protocols if in IEEE mode.
-        if ((currState & XUM1541_IEEE488_PRESENT) == 0)
-            proto = XUM_RW_PROTO(request[1]);
+        if ((currState & PICO1541_IEEE488_PRESENT) == 0)
+            proto = PICO_RW_PROTO(request[1]);
         else
-            proto = XUM1541_CBM;
+            proto = PICO1541_CBM;
         DEBUGF(DBG_INFO, "wr:%d %d\n", proto, len);
         // loop to fetch each byte and write it as we get it
         switch (proto) {
-        case XUM1541_CBM:
-            len = cmds->cbm_raw_write(len, XUM_RW_FLAGS(request[1]));
-            XUM_SET_STATUS_VAL(status, len);
+        case PICO1541_CBM:
+            len = cmds->cbm_raw_write(len, PICO_RW_FLAGS(request[1]));
+            PICO_SET_STATUS_VAL(status, len);
             break;
-        case XUM1541_S1:
+        case PICO1541_S1:
             ioWriteLoop(s1_write_byte, len);
             ret = 0;
             break;
-        case XUM1541_S2:
+        /*case PICO1541_S2:
             ioWriteLoop(s2_write_byte, len);
             ret = 0;
             break;
-        case XUM1541_PP:
+        case PICO1541_PP:
             ioWrite2Loop(pp_write_2_bytes, len);
             ret = 0;
             break;
-        case XUM1541_P2:
+        case PICO1541_P2:
             ioWriteLoop(p2_write_byte, len);
             ret = 0;
             break;
-        case XUM1541_NIB:
+        case PICO1541_NIB:
             ioWriteNibLoop(len);
             ret = 0;
             break;
-        case XUM1541_NIB_COMMAND:
+        case PICO1541_NIB_COMMAND:
             ioWriteLoop(nib_parburst_write_checked, len);
             ret = 0;
-            break;
-#ifdef SRQ_NIB_SUPPORT
-        case XUM1541_NIB_SRQ:
+            break;*/
+/*#ifdef SRQ_NIB_SUPPORT
+        case PICO1541_NIB_SRQ:
             ioWriteNibSrqLoop(len);
             ret = 0;
             break;
-        case XUM1541_NIB_SRQ_COMMAND:
+        case PICO1541_NIB_SRQ_COMMAND:
             ioWriteLoop(nib_srqburst_write_checked, len);
             ret = 0;
             break;
 #endif // SRQ_NIB_SUPPORT
 #ifdef TAPE_SUPPORT
-        case XUM1541_TAP:
-            XUM_SET_STATUS_VAL(status, Tape_Write());
+        case PICO1541_TAP:
+            PICO_SET_STATUS_VAL(status, Tape_Write());
             break;
-        case XUM1541_TAP_CONFIG:
-            XUM_SET_STATUS_VAL(status, Tape_UploadConfig());
+        case PICO1541_TAP_CONFIG:
+            PICO_SET_STATUS_VAL(status, Tape_UploadConfig());
             break;
-#endif // TAPE_SUPPORT
+#endif // TAPE_SUPPORT*/
         default:
             DEBUGF(DBG_ERROR, "badproto %d\n", proto);
             ret = -1;
         }
-        break;*/
+        break;
 
     /* Low-level port access */
-    /*case XUM1541_GET_EOI:
-        XUM_SET_STATUS_VAL(status, eoi ? 1 : 0);
+    case PICO1541_GET_EOI:
+        PICO_SET_STATUS_VAL(status, eoi ? 1 : 0);
         break;
-    case XUM1541_CLEAR_EOI:
+    case PICO1541_CLEAR_EOI:
         eoi = 0;
         break;
-    case XUM1541_IEC_WAIT:
-        if (!cmds->cbm_wait(/*line*//*request[1], *//*state*//*request[2])) {*/
-        /*    ret = 0;
+    case PICO1541_IEC_WAIT:
+        if (!cmds->cbm_wait(/*line*/request[1], /*state*/request[2])) {
+            ret = 0;
             break;
-        }*/
+        }
         /* FALLTHROUGH */
-    /*case XUM1541_IEC_POLL:
-        XUM_SET_STATUS_VAL(status, cmds->cbm_poll());
-        DEBUGF(DBG_INFO, "poll=%x\n", XUM_GET_STATUS_VAL(status));
+    case PICO1541_IEC_POLL:
+        PICO_SET_STATUS_VAL(status, cmds->cbm_poll());
+        DEBUGF(DBG_INFO, "poll=%x\n", PICO_GET_STATUS_VAL(status));
         break;
-    case XUM1541_IEC_SETRELEASE:*/
-        //cmds->cbm_setrelease(/*set*/request[1], /*release*/request[2]);
-        //break;
-    /*case XUM1541_PP_READ:
+    case PICO1541_IEC_SETRELEASE:
+        cmds->cbm_setrelease(/*set*/request[1], /*release*/request[2]);
+        break;
+/*    case PICO1541_PP_READ:
         // Disallow if in IEEE mode.
-        if ((currState & XUM1541_IEEE488_PRESENT)) {
+        if ((currState & PICO1541_IEEE488_PRESENT)) {
             ret = -1;
             break;
         }
-        XUM_SET_STATUS_VAL(status, iec_pp_read());
+        PICO_SET_STATUS_VAL(status, iec_pp_read());
         break;
-    case XUM1541_PP_WRITE:
+    case PICO1541_PP_WRITE:
         // Disallow if in IEEE mode.
-        if ((currState & XUM1541_IEEE488_PRESENT)) {
+        if ((currState & PICO1541_IEEE488_PRESENT)) {
             ret = -1;
             break;
         }
         iec_pp_write(request[1]);
         break;
-    case XUM1541_PARBURST_READ:
+    case PICO1541_PARBURST_READ:
         // Disallow if in IEEE mode.
-        if ((currState & XUM1541_IEEE488_PRESENT)) {
+        if ((currState & PICO1541_IEEE488_PRESENT)) {
             ret = -1;
             break;
         }
-        XUM_SET_STATUS_VAL(status, nib_parburst_read_checked());
+        PICO_SET_STATUS_VAL(status, nib_parburst_read_checked());
         break;
-    case XUM1541_PARBURST_WRITE:
+    case PICO1541_PARBURST_WRITE:
         // Disallow if in IEEE mode.
-        if ((currState & XUM1541_IEEE488_PRESENT)) {
+        if ((currState & PICO1541_IEEE488_PRESENT)) {
             ret = -1;
             break;
         }
         // Sets suppressNibCmd if we're doing a read/write track.
         nib_parburst_write_checked(request[1]);
-        break;
-#ifdef SRQ_NIB_SUPPORT
-    case XUM1541_SRQBURST_READ:
+        break;*/
+/*#ifdef SRQ_NIB_SUPPORT
+    case PICO1541_SRQBURST_READ:
         // Disallow if in IEEE mode.
-        if ((currState & XUM1541_IEEE488_PRESENT)) {
+        if ((currState & PICO1541_IEEE488_PRESENT)) {
             ret = -1;
             break;
         }
-        XUM_SET_STATUS_VAL(status, nib_srqburst_read_checked());
+        PICO_SET_STATUS_VAL(status, nib_srqburst_read_checked());
         break;
-    case XUM1541_SRQBURST_WRITE:
+    case PICO1541_SRQBURST_WRITE:
         // Disallow if in IEEE mode.
-        if ((currState & XUM1541_IEEE488_PRESENT)) {
+        if ((currState & PICO1541_IEEE488_PRESENT)) {
             ret = -1;
             break;
         }
@@ -886,37 +887,35 @@ int8_t usbHandleBulk(uint8_t *request, uint8_t *status)
         break;
 #endif // SRQ_NIB_SUPPORT
 #ifdef TAPE_SUPPORT
-    case XUM1541_TAP_PREPARE_CAPTURE:
-        XUM_SET_STATUS_VAL(status, Tape_PrepareCapture());
+    case PICO1541_TAP_PREPARE_CAPTURE:
+        PICO_SET_STATUS_VAL(status, Tape_PrepareCapture());
         break;
-    case XUM1541_TAP_PREPARE_WRITE:
-        XUM_SET_STATUS_VAL(status, Tape_PrepareWrite());
+    case PICO1541_TAP_PREPARE_WRITE:
+        PICO_SET_STATUS_VAL(status, Tape_PrepareWrite());
         break;
-    case XUM1541_TAP_GET_SENSE:
-        XUM_SET_STATUS_VAL(status, Tape_GetSense());
+    case PICO1541_TAP_GET_SENSE:
+        PICO_SET_STATUS_VAL(status, Tape_GetSense());
         break;
-    case XUM1541_TAP_WAIT_FOR_STOP_SENSE:
-        XUM_SET_STATUS_VAL(status, Tape_WaitForStopSense());
+    case PICO1541_TAP_WAIT_FOR_STOP_SENSE:
+        PICO_SET_STATUS_VAL(status, Tape_WaitForStopSense());
         break;
-    case XUM1541_TAP_WAIT_FOR_PLAY_SENSE:
-        XUM_SET_STATUS_VAL(status, Tape_WaitForPlaySense());
+    case PICO1541_TAP_WAIT_FOR_PLAY_SENSE:
+        PICO_SET_STATUS_VAL(status, Tape_WaitForPlaySense());
         break;
-    case XUM1541_TAP_MOTOR_ON:
-        XUM_SET_STATUS_VAL(status, Tape_MotorOn());
+    case PICO1541_TAP_MOTOR_ON:
+        PICO_SET_STATUS_VAL(status, Tape_MotorOn());
         break;
-    case XUM1541_TAP_MOTOR_OFF:
-        XUM_SET_STATUS_VAL(status, Tape_MotorOff());
+    case PICO1541_TAP_MOTOR_OFF:
+        PICO_SET_STATUS_VAL(status, Tape_MotorOff());
         break;
-    case XUM1541_TAP_GET_VER:
-        XUM_SET_STATUS_VAL(status, Tape_GetTapeFirmwareVersion());
+    case PICO1541_TAP_GET_VER:
+        PICO_SET_STATUS_VAL(status, Tape_GetTapeFirmwareVersion());
         break;
-#endif // TAPE_SUPPORT
+#endif // TAPE_SUPPORT*/
     default:
         DEBUGF(DBG_ERROR, "ERR: bulk cmd %d not impl.\n", cmd);
         ret = -1;
     }
 
-    return ret;*/
-
-    return -1;
+    return ret;
 }

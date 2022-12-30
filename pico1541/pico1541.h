@@ -30,7 +30,7 @@
 #define DEBUGF(level, format, args...)      \
     do {                                    \
         if (DEBUG_LEVEL >= level)           \
-            printf_P(PSTR(format), ##args); \
+            printf(PSTR(format), ##args); \
     } while (0)
 #else
 #define DEBUGF(level, format, args...)
@@ -52,7 +52,7 @@
 #define IEC_SRQ     0x10
 
 /* specifiers for the IEEE-488 lines (must match values from opencbm.h) */
-#define IEE_NDAC    0x01 // Not data accepted
+/*#define IEE_NDAC    0x01 // Not data accepted
 #define IEE_NRFD    0x02 // Not ready for data
 #define IEE_ATN     0x04 // Attention, similar to IEC ATN
 #define IEE_IFC     0x08 // Interface clear, similar to IEC RESET
@@ -60,6 +60,7 @@
 #define IEE_EOI     0x20 // End or identify
 #define IEE_REN     0x40 // Remote enable (not really used)
 #define IEE_SRQ     0x80 // Device service request
+*/
 
 // Definition of EEPROM cells used for certain configuration settings
 // Please always add new settings at the end of this declaration
@@ -71,10 +72,11 @@ extern volatile uint8_t eoi;
 extern volatile bool doDeviceReset;
 extern volatile bool device_running;
 
-//TODO: USB IO functions and command handlers
 bool TimerWorker(void);
 void SetAbortState(void);
+
 /*
+//TODO: USB IO functions and command handlers
 int8_t usbHandleControl(uint8_t cmd, uint8_t *replyBuf);
 int8_t usbHandleBulk(uint8_t *request, uint8_t *status);
 void USB_ResetConfig(void);
@@ -109,10 +111,10 @@ extern struct ProtocolFunctions *cmds;
 // Initializers for each protocol
 struct ProtocolFunctions *cbm_init(void);
 struct ProtocolFunctions *iec_init(void);
-#ifdef IEEE_SUPPORT
-//struct ProtocolFunctions *ieee_init(void);
-#endif
 
+//#ifdef IEEE_SUPPORT
+//struct ProtocolFunctions *ieee_init(void);
+//#endif
 
 /*
  * Special protocol handlers:
@@ -139,9 +141,5 @@ int8_t nib_read_handshaked(uint8_t *c, uint8_t toggle);
 void nib_parburst_write(uint8_t data);
 int8_t nib_write_handshaked(uint8_t data, uint8_t toggle);
 */
-
-
-
-
 
 #endif

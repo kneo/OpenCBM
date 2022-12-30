@@ -1,6 +1,17 @@
 
 #include "pico1541.h"
 
+/*
+#define LED_UPPER_RED   LEDS_LED3
+#define LED_UPPER_GREEN LEDS_LED4
+#define LED_LOWER_RED   LEDS_LED1
+#define LED_LOWER_GREEN LEDS_LED2
+*/
+
+static uint8_t statusValue;
+static uint8_t statusMask;
+static bool has_board_timer_fired;
+
 #ifdef DEBUG
 // Send a byte to the UART for debugging printf()
 static int uart_putchar(char c, FILE *stream)
@@ -14,35 +25,29 @@ static int uart_putchar(char c, FILE *stream)
 //static FILE mystdout = FDEV_SETUP_STREAM(uart_putchar, NULL, _FDEV_SETUP_WRITE);
 #endif // DEBUG
 
+static struct repeating_timer board_timer;
+
+bool board_timer_callback(struct repeating_timer *t) {
+    has_board_timer_fired = true;
+    return true;
+}
+
+void board_init_leds(void)
+{
+    //TODO: add some status LEDs. 
+}
+
 // Initialize the board (timer, indicator LEDs, UART)
 void board_init(void)
 {
-/*
-* Initialize the UART baud rate at 115200 8N1 and select it for
-* printf() output.
-*/
+    has_board_timer_fired=false;
+    
+    void* user_data = NULL;
 
-/*
-#ifdef DEBUG
-#define BAUD 115200
-#include <util/setbaud.h>
+    add_repeating_timer_ms(100, board_timer_callback, user_data, &board_timer);
 
-#if USE_2X
-    UCSR1A |= _BV(U2X1);
-#else
-    UCSR1A &= ~(_BV(U2X1));
-#endif
-    UCSR1B |= _BV(TXEN1);
-    UBRR1 = UBRR_VALUE;
-    stdout = &mystdout;
-#endif
+    board_init_leds();
 
-    LEDs_Init();
-
-    // Setup 16 bit timer as normal counter with prescaler F_CPU/1024.
-    // We use this to create a repeating 100 ms (10 hz) clock.
-    OCR1A = (F_CPU / 1024) / 10;
-    TCCR1B |= (1 << WGM12) | (1 << CS02) | (1 << CS00);*/
 }
 
 // Initialize the board IO ports for IEC mode
@@ -50,29 +55,155 @@ void board_init(void)
 // state by a prior initialization (e.g., auto-probe for IEEE devices).
 void board_init_iec(void)
 {
-    /*
-     * Configure the IEC port for 4 inputs, 4 outputs.
-     *
-     * Add pull-ups on all the inputs since we're running at 3.3V while
-     * the 1541 is at 5V.  This causes current to flow into our Vcc
-     * through the 1541's 1K ohm pull-ups but with our pull-ups also,
-     * the current is only ~50 uA (versus 1.7 mA with just the 1K pull-ups).
-     */
+
+    for(uint8_t pin = 0; pin<IO_PIN_COUNT; pin++)
+    {
+        gpio_init(global_pin_lookup_table[pin].gpio);
+        gpio_set_dir(global_pin_lookup_table[pin].gpio, GPIO_IN);
+    }
+
     /*CBM_DDR = IO_OUTPUT_MASK;
     CBM_PORT = (uint8_t)~IO_OUTPUT_MASK;
     PAR_PORT_PORT = 0;
     PAR_PORT_DDR = 0;*/
 }
 
-/*
-#define LED_UPPER_RED   LEDS_LED3
-#define LED_UPPER_GREEN LEDS_LED4
-#define LED_LOWER_RED   LEDS_LED1
-#define LED_LOWER_GREEN LEDS_LED2
-*/
+INLINE void SetSignalOutHigh(uint8_t vio_pin)
+{
+        gpio_set_dir(global_pin_lookup_table[vio_pin].gpio, GPIO_OUT);
+        gpio_put (global_pin_lookup_table[vio_pin].gpio, true);
+}
 
-static uint8_t statusValue;
-static uint8_t statusMask;
+void iec_set(uint8_t line)
+{
+    if(IS_SIGNAL_SET(line,IO_ATN))
+    {
+        SetSignalOutHigh(VIO_PIN_ATN);
+    }
+
+    if(IS_SIGNAL_SET(line,IO_CLK))
+    {
+        SetSignalOutHigh(VIO_PIN_CLK);    
+    }
+
+    if(IS_SIGNAL_SET(line,IO_DATA))
+    {
+        SetSignalOutHigh(VIO_PIN_DATA);    
+    }
+
+    if(IS_SIGNAL_SET(line,IO_RESET))
+    {
+        SetSignalOutHigh(VIO_PIN_RESET);    
+    }
+
+    if(IS_SIGNAL_SET(line,IO_SRQ))
+    {
+        SetSignalOutHigh(VIO_PIN_SRQ);   
+    }
+}
+
+INLINE void SetSignalInLow(uint8_t vio_pin)
+{
+        gpio_put (global_pin_lookup_table[vio_pin].gpio, false);    
+        gpio_set_dir(global_pin_lookup_table[vio_pin].gpio, GPIO_IN);
+}
+
+void iec_release(uint8_t line)
+{
+    if(IS_SIGNAL_SET(line,IO_ATN))
+    {
+        SetSignalInLow(VIO_PIN_ATN);
+    }
+
+    if(IS_SIGNAL_SET(line,IO_CLK))
+    {
+        SetSignalInLow(VIO_PIN_CLK);
+    }
+
+    if(IS_SIGNAL_SET(line,IO_DATA))
+    {
+        SetSignalInLow(VIO_PIN_DATA);
+    }
+
+    if(IS_SIGNAL_SET(line,IO_RESET))
+    {
+        SetSignalInLow(VIO_PIN_RESET);
+    }
+
+    if(IS_SIGNAL_SET(line,IO_SRQ))
+    {
+        SetSignalInLow(VIO_PIN_SRQ);
+    }
+}
+
+INLINE int8_t ResolveGPIO(uint8_t line)
+{
+    if(IS_SIGNAL_SET(line,IO_ATN))
+    {
+        return global_pin_lookup_table[VIO_PIN_ATN].gpio;
+    }
+
+    if(IS_SIGNAL_SET(line,IO_CLK))
+    {
+        return global_pin_lookup_table[VIO_PIN_CLK].gpio;
+    }
+
+    if(IS_SIGNAL_SET(line,IO_DATA))
+    {
+        return global_pin_lookup_table[VIO_PIN_DATA].gpio;
+    }
+
+    if(IS_SIGNAL_SET(line,IO_RESET))
+    {
+        return global_pin_lookup_table[VIO_PIN_RESET].gpio;
+    }
+
+    if(IS_SIGNAL_SET(line,IO_SRQ))
+    {
+        return global_pin_lookup_table[VIO_PIN_SRQ].gpio;
+    }
+
+    return -1;
+}
+
+void iec_set_release(uint8_t s, uint8_t r)
+{
+    iec_set(s);
+    iec_release(r);
+}
+
+uint8_t iec_get(uint8_t line)
+{
+    bool gpio_value = gpio_get(ResolveGPIO(line));
+    return (gpio_value==true)? 1 : 0;
+}
+
+/*INLINE uint8_t iec_pp_read(void)
+{
+    PAR_PORT_DDR = 0;
+    PAR_PORT_PORT = 0;
+    return PAR_PORT_PIN;
+    return 0;
+}
+
+INLINE void iec_pp_write(uint8_t val)
+{
+    PAR_PORT_DDR = 0xff;
+    PAR_PORT_PORT = val;
+}*/
+
+uint8_t iec_poll_pins(void)
+{
+    uint8_t result = 0;
+
+    result |= gpio_get(ResolveGPIO(VIO_PIN_ATN))    == 1 ? VIO_PIN_ATN : 0;
+    result |= gpio_get(ResolveGPIO(VIO_PIN_CLK))    == 1 ? VIO_PIN_CLK : 0;
+    result |= gpio_get(ResolveGPIO(VIO_PIN_DATA))   == 1 ? VIO_PIN_DATA : 0;
+    result |= gpio_get(ResolveGPIO(VIO_PIN_RESET))  == 1 ? VIO_PIN_RESET : 0;
+    result |= gpio_get(ResolveGPIO(VIO_PIN_SRQ))    == 1 ? VIO_PIN_SRQ : 0;
+
+    return result;
+}
 
 uint8_t board_get_status()
 {
@@ -125,12 +256,12 @@ void board_update_display()
  */
 bool board_timer_fired()
 {
-    // If timer fired, clear overflow bit and notify caller.
-    /*if ((TIFR1 & (1 << OCF1A)) != 0) {
-        TIFR1 |= (1 << OCF1A);
-        return true;
-    } else
-        return false;*/
+    bool result = has_board_timer_fired;
 
-    return false;
+    if(has_board_timer_fired)
+    {
+        has_board_timer_fired = false;
+    }
+
+    return result;
 }

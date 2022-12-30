@@ -21,22 +21,42 @@ int main()
     stdio_init_all();
 
     cpu_init();
+
+    //TODO: map USB libraries, 
     //USB_Init();
 
-    while (!usb_connected)
+    /*while (!usb_connected)
     {
         //wdt_reset();
-    }
+    }*/
     
     // Indicate device not ready
     board_init();
     board_set_status(STATUS_INIT);
 
-    cbm_init();
+    struct ProtocolFunctions* test = cbm_init();
+
+    uint8_t counter = 0;
 
     while(true)
     {
-        printf("Hello World!\n");
+        /*while(device_running)
+        {
+            //TODO: usb loop worker
+
+            //
+
+            if (!TimerWorker())
+            {
+                doDeviceReset = false;
+            }
+        }*/
+
+        //test->
+
+
+        //printf("Hello World!\n");
+        counter++;
         sleep_ms(500);
     }
 }
@@ -215,7 +235,7 @@ void SetAbortState()
  */
 bool TimerWorker()
 {
-    /*wdt_reset();
+    /*wdt_reset();*/
 
     // Inform the caller to quit the current transfer if we're resetting.
     if (doDeviceReset)
@@ -224,8 +244,8 @@ bool TimerWorker()
     // If the timer has fired, update the board display
     if (board_timer_fired())
         board_update_display();
-    return true;*/
-    return false;
+    return true;
+    //return false;
 }
 
 /*
