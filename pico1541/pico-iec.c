@@ -440,64 +440,71 @@ static uint16_t iec_raw_write(uint16_t len, uint8_t flags)
 
 static uint16_t iec_raw_read(uint16_t len)
 {
-    /*uint8_t ok, bit, b;
+    uint8_t ok, bit, b;
     uint16_t to, count;
 
     DEBUGF(DBG_INFO, "crd %d\n", len);
-    usbInitIo(len, ENDPOINT_DIR_IN);
+    //usbInitIo(len, ENDPOINT_DIR_IN);
     count = 0;
-    do {
-        to = 0;*/
+    do
+    {
+        to = 0;
 
         /* wait for clock to be released. typically times out during: */
         /* directory read */
-        /*while (iec_get(IO_CLK)) {
-            if (to >= 50000 || !TimerWorker()) {*/
+        while (iec_get(IO_CLK))
+        {
+            if (to >= 50000 || !TimerWorker())
+            {
                 /* 1.0 (50000 * 20us) sec timeout */
- /*               DEBUGF(DBG_ERROR, "rd to\n");
-                usbIoDone();
+                DEBUGF(DBG_ERROR, "rd to\n");
+                //usbIoDone();
                 return 0;
             }
             to++;
             DELAY_US(20);
-        }*/
+        }
 
         // XXX is this right? why treat EOI differently here?
-        /*
-        if (eoi) {
-            usbIoDone();
+        
+        if (eoi)
+        {
+            //usbIoDone();
             return 0;
-        }*/
+        }
 
         /* release DATA line */
-        //iec_release(IO_DATA);
+        iec_release(IO_DATA);
 
         /* use special "timer with wait for clock" */
-        //iec_wait_clk();
+        iec_wait_clk();
 
         // Is the talking device signalling EOI?
-        /*if (iec_get(IO_CLK) == 0) {
+        if (iec_get(IO_CLK) == 0)
+        {
             eoi = 1;
             iec_set(IO_DATA);
             DELAY_US(70);
             iec_release(IO_DATA);
-        }*/
+        }
 
         /*
          * Disable IRQs to make sure the byte transfer goes uninterrupted.
          * This isn't strictly needed since the only interrupt we use is the
          * one for USB control transfers.
          */
-        //cli();
+        cli();
 
         // Wait up to 2 ms for CLK to be asserted
-        //ok = iec_wait_timeout_2ms(IO_CLK, IO_CLK);
+        ok = iec_wait_timeout_2ms(IO_CLK, IO_CLK);
 
         // Read all 8 bits of a byte
-        /*for (bit = b = 0; bit < 8 && ok; bit++) {
+        for (bit = b = 0; bit < 8 && ok; bit++)
+        {
             // Wait up to 2 ms for CLK to be released
             ok = iec_wait_timeout_2ms(IO_CLK, 0);
-            if (ok) {
+            if (ok)
+            {
                 b >>= 1;
                 if (iec_get(IO_DATA) == 0)
                     b |= 0x80;
@@ -505,32 +512,35 @@ static uint16_t iec_raw_read(uint16_t len)
                 // Wait up to 2 ms for CLK to be asserted
                 ok = iec_wait_timeout_2ms(IO_CLK, IO_CLK);
             }
-        }*/
+        }
 
-        /*sei();
+        sei();
 
-        if (ok) {
+        if (ok)
+        {
             // Acknowledge byte received ok
             iec_set(IO_DATA);
 
             // Send the data byte to host, quitting if it signalled an abort.
-            if (usbSendByte(b))
-                break;
+            //if (usbSendByte(b))
+            //    break;
             count++;
             DELAY_US(50);
         }
 
-        wdt_reset();*/
-    //} while (count != len && ok && !eoi);
+        //wdt_reset();
+        }
+        while (count != len && ok && !eoi);
 
-    /*if (!ok) {
+    if (!ok)
+    {
         DEBUGF(DBG_ERROR, "read io err\n");
         count = 0;
     }
 
     DEBUGF(DBG_INFO, "rv=%d\n", count);
-    usbIoDone();
-    return count;*/
+    //usbIoDone();
+    return count;
 }
 
 /* wait forever for a specific line to reach a certain state */

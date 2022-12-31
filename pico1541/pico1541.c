@@ -36,6 +36,10 @@ int main()
 
     struct ProtocolFunctions* test = cbm_init();
 
+    gpio_init(LED_PIN);
+    gpio_set_dir(LED_PIN, GPIO_OUT);
+    gpio_put(LED_PIN, 1);
+
     uint8_t counter = 0;
 
     while(true)
@@ -55,7 +59,7 @@ int main()
         //test->
 
 
-        //printf("Hello World!\n");
+        printf("Hello World!\n");
         counter++;
         sleep_ms(500);
     }

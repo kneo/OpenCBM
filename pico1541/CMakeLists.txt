@@ -14,8 +14,8 @@ add_executable(pico1541 pico1541.c board-pico-official.c pico-s1.c pico-iec.c pi
 # pull in common dependencies
 target_link_libraries(pico1541 pico_stdlib hardware_gpio hardware_pio)
 
-pico_enable_stdio_usb(pico1541 1)
-pico_enable_stdio_uart(pico1541 0)
+pico_enable_stdio_usb(pico1541 0)
+pico_enable_stdio_uart(pico1541 1)
 
 # create map/bin/hex file etc.
 pico_add_extra_outputs(pico1541)

@@ -10,11 +10,11 @@ void board_init_iec(void);
 //since the PI Pico does not have "ports" to speak of.
 //it has 32 pins, however in order to provide flexibility, 
 //the GPIOs shall be configurable:
-#define GPIO_PIN_ATN          (0)
-#define GPIO_PIN_CLK          (1)
-#define GPIO_PIN_DATA         (2)
-#define GPIO_PIN_RESET        (3)
-#define GPIO_PIN_SRQ          (4)
+#define GPIO_PIN_ATN          (2)
+#define GPIO_PIN_CLK          (3)
+#define GPIO_PIN_DATA         (4)
+#define GPIO_PIN_RESET        (5)
+#define GPIO_PIN_SRQ          (6)
 
 #define IO_PIN_COUNT (5)
 

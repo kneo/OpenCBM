@@ -196,11 +196,11 @@ uint8_t iec_poll_pins(void)
 {
     uint8_t result = 0;
 
-    result |= gpio_get(ResolveGPIO(VIO_PIN_ATN))    == 1 ? VIO_PIN_ATN : 0;
-    result |= gpio_get(ResolveGPIO(VIO_PIN_CLK))    == 1 ? VIO_PIN_CLK : 0;
-    result |= gpio_get(ResolveGPIO(VIO_PIN_DATA))   == 1 ? VIO_PIN_DATA : 0;
-    result |= gpio_get(ResolveGPIO(VIO_PIN_RESET))  == 1 ? VIO_PIN_RESET : 0;
-    result |= gpio_get(ResolveGPIO(VIO_PIN_SRQ))    == 1 ? VIO_PIN_SRQ : 0;
+    result |= (gpio_get(ResolveGPIO(IO_ATN))    == 1) ? (1<<VIO_PIN_ATN)      : 0;
+    result |= (gpio_get(ResolveGPIO(IO_CLK))    == 1) ? (1<<VIO_PIN_CLK)      : 0;
+    result |= (gpio_get(ResolveGPIO(IO_DATA))   == 1) ? (1<<VIO_PIN_DATA)     : 0;
+    result |= (gpio_get(ResolveGPIO(IO_RESET))  == 1) ? (1<<VIO_PIN_RESET)    : 0;
+    result |= (gpio_get(ResolveGPIO(IO_SRQ))    == 1) ? (1<<VIO_PIN_SRQ)      : 0;
 
     return result;
 }
